@@ -1,6 +1,6 @@
 {
-  "title": "Halo AI Chat",
-  "description": "A fast, beautiful AI chat assistant powered by Groq. Chat with multiple LLM models including Llama, GPT-OSS, and Qwen through Groq's blazing-fast inference.",
+  "title": "Zanz_Codex - AI Chat",
+  "description": "AI Chat assistant Zanz_Codex, powered by Groq. Chat with multiple LLM models.",
   "category": "Productivity",
   "icon": "icon.svg",
   "screenshots": []
