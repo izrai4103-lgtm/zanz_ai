@@ -1,0 +1,615 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Zanz_Codex Dashboard</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://unpkg.com/vue@3.5/dist/vue.global.prod.js"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <style>
+    * { scrollbar-width: thin; scrollbar-color: rgba(148,163,184,0.3) transparent; }
+    *::-webkit-scrollbar { width: 6px; height: 6px; }
+    *::-webkit-scrollbar-thumb { background: rgba(148,163,184,0.3); border-radius: 3px; }
+    html { font-family: 'Inter', system-ui, sans-serif; }
+    html.dark { color-scheme: dark; }
+    .glass { background: rgba(255,255,255,0.04); backdrop-filter: blur(12px); border: 1px solid rgba(255,255,255,0.06); }
+    .fade-enter-active, .fade-leave-active { transition: opacity 0.25s ease; }
+    .fade-enter-from, .fade-leave-to { opacity: 0; }
+    pre { font-family: 'JetBrains Mono', monospace; }
+    .editor-area { font-family: 'JetBrains Mono', monospace; tab-size: 2; }
+  </style>
+</head>
+<body class="bg-gray-950 text-gray-100 min-h-screen">
+<div id="app">
+  <!-- Login Screen -->
+  <template v-if="!loggedIn">
+    <div class="min-h-screen flex items-center justify-center px-4">
+      <div class="w-full max-w-sm">
+        <div class="text-center mb-8">
+          <div class="w-16 h-16 mx-auto rounded-2xl bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-2xl mb-4">⚙️</div>
+          <h1 class="text-2xl font-bold gradient-text" style="background:linear-gradient(135deg,#a78bfa,#6366f1,#8b5cf6);-webkit-background-clip:text;-webkit-text-fill-color:transparent">Zanz_Codex Dashboard</h1>
+          <p class="text-sm text-gray-500 mt-1">Masukkan password untuk mengakses kontrol panel</p>
+        </div>
+        <div class="glass rounded-2xl p-6">
+          <div class="mb-4">
+            <label class="text-xs font-medium text-gray-400 block mb-1.5">Password</label>
+            <input v-model="loginPass" type="password" @keydown.enter="doLogin" class="w-full bg-gray-800/50 text-gray-200 rounded-xl px-4 py-2.5 border border-white/10 focus:outline-none focus:ring-2 focus:ring-indigo-500/40 text-sm" placeholder="Enter dashboard password..." />
+          </div>
+          <p v-if="loginError" class="text-red-400 text-xs mb-3">{{ loginError }}</p>
+          <button @click="doLogin" class="w-full bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white rounded-xl px-4 py-2.5 text-sm font-medium transition">Login</button>
+        </div>
+      </div>
+    </div>
+  </template>
+
+  <!-- Dashboard -->
+  <template v-else>
+    <div class="flex h-screen overflow-hidden">
+      <!-- Sidebar -->
+      <div class="w-56 shrink-0 flex flex-col" style="background:rgba(0,0,0,0.4);backdrop-filter:blur(16px);border-right:1px solid rgba(255,255,255,0.06)">
+        <div class="p-4 border-b border-white/5">
+          <h2 class="text-sm font-bold gradient-text" style="background:linear-gradient(135deg,#a78bfa,#6366f1,#8b5cf6);-webkit-background-clip:text;-webkit-text-fill-color:transparent">⚙️ Control Panel</h2>
+        </div>
+        <div class="flex-1 overflow-y-auto p-2 space-y-1">
+          <button v-for="item in menuItems" :key="item.id" @click="currentTab=item.id" class="w-full text-left px-3 py-2 rounded-xl text-xs font-medium transition" :class="currentTab===item.id ? 'bg-indigo-600/20 text-indigo-300 border border-indigo-500/20' : 'text-gray-400 hover:text-gray-200 hover:bg-white/5'">{{ item.label }}</button>
+        </div>
+        <div class="p-3 border-t border-white/5">
+          <div class="flex items-center gap-2 mb-2">
+            <span class="w-2 h-2 rounded-full" :class="repoStatus==='ok'?'bg-green-400':'bg-red-400'"></span>
+            <span class="text-[10px] text-gray-500">{{ repoStatus==='ok'?'GitHub Connected':'Disconnected' }}</span>
+          </div>
+          <button @click="deployToAnyclaw" :disabled="deploying" class="w-full bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white rounded-xl px-3 py-1.5 text-xs font-medium transition mb-1">🚀 Deploy to Anyclaw</button>
+          <button @click="logout" class="w-full text-gray-500 hover:text-red-400 text-xs py-1 transition">Logout</button>
+        </div>
+      </div>
+
+      <!-- Main Content -->
+      <div class="flex-1 flex flex-col min-w-0">
+        <header class="h-12 shrink-0 flex items-center px-4 border-b border-white/5 glass">
+          <h3 class="text-sm font-semibold text-gray-300">{{ menuItems.find(m=>m.id===currentTab)?.label }}</h3>
+          <div class="ml-auto flex items-center gap-2">
+            <span class="text-[10px] text-gray-600">{{ repoInfo }}</span>
+          </div>
+        </header>
+
+        <div class="flex-1 overflow-y-auto p-4">
+          <!-- Tab: Files -->
+          <div v-if="currentTab==='files'" class="space-y-4">
+            <div class="flex items-center gap-2 mb-2">
+              <input v-model="newFilePath" placeholder="path/file.ext" class="flex-1 bg-gray-800/50 text-gray-200 text-xs rounded-xl px-3 py-2 border border-white/10 focus:outline-none focus:ring-2 focus:ring-indigo-500/40" />
+              <button @click="createNewFile" class="bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl px-3 py-2 text-xs font-medium transition">+ New File</button>
+              <button @click="refreshFiles" class="bg-gray-700 hover:bg-gray-600 text-gray-300 rounded-xl px-3 py-2 text-xs transition">⟳</button>
+            </div>
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+              <div class="glass rounded-xl p-3">
+                <div class="text-xs font-medium text-gray-400 mb-2 uppercase tracking-wide">📁 Files</div>
+                <div class="space-y-0.5 max-h-96 overflow-y-auto">
+                  <div v-for="f in repoFiles" :key="f.path" @click="selectFile(f)" class="flex items-center gap-2 px-2 py-1.5 rounded-lg cursor-pointer text-xs transition" :class="selectedFile?.path===f.path?'bg-indigo-600/20 text-indigo-300':'text-gray-400 hover:text-gray-200 hover:bg-white/5'">
+                    <span>{{ f.type==='dir'?'📁':'📄' }}</span>
+                    <span>{{ f.path }}</span>
+                  </div>
+                  <div v-if="repoFiles.length===0" class="text-xs text-gray-600 text-center py-4">No files loaded</div>
+                </div>
+              </div>
+              <div class="glass rounded-xl p-3">
+                <div class="flex items-center justify-between mb-2">
+                  <div class="text-xs font-medium text-gray-400 uppercase tracking-wide">📝 {{ selectedFile?.path || 'Select a file' }}</div>
+                  <div class="flex gap-1">
+                    <button v-if="selectedFile" @click="saveFile" :disabled="saving" class="bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white rounded-lg px-3 py-1 text-xs font-medium transition">💾 Save</button>
+                  </div>
+                </div>
+                <textarea v-if="selectedFile" v-model="fileContent" class="editor-area w-full h-80 bg-gray-900/80 text-green-300 text-xs rounded-xl p-3 border border-white/5 focus:outline-none focus:ring-1 focus:ring-indigo-500/40 resize-y" spellcheck="false"></textarea>
+                <div v-else class="h-80 flex items-center justify-center text-xs text-gray-600">Select a file from the list to edit</div>
+                <div v-if="saveMsg" class="text-xs mt-1" :class="saveMsgType==='ok'?'text-green-400':'text-red-400'">{{ saveMsg }}</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Tab: System Prompt -->
+          <div v-if="currentTab==='prompt'" class="max-w-3xl">
+            <div class="glass rounded-xl p-4">
+              <div class="flex items-center justify-between mb-3">
+                <div>
+                  <h4 class="text-sm font-semibold text-gray-300">System Prompt / Persona</h4>
+                  <p class="text-[11px] text-gray-500">Ini adalah instruksi kepribadian AI Zanz_Codex</p>
+                </div>
+                <button @click="savePrompt" :disabled="savingPrompt" class="bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white rounded-xl px-4 py-2 text-xs font-medium transition">💾 Simpan Perubahan</button>
+              </div>
+              <textarea v-model="promptContent" class="editor-area w-full h-96 bg-gray-900/80 text-gray-200 text-sm rounded-xl p-4 border border-white/5 focus:outline-none focus:ring-1 focus:ring-indigo-500/40 resize-y" spellcheck="false"></textarea>
+              <div v-if="promptMsg" class="text-xs mt-1" :class="promptMsgType==='ok'?'text-green-400':'text-red-400'">{{ promptMsg }}</div>
+            </div>
+          </div>
+
+          <!-- Tab: AI Name -->
+          <div v-if="currentTab==='name'" class="max-w-2xl">
+            <div class="glass rounded-xl p-4">
+              <div class="flex items-center justify-between mb-3">
+                <div>
+                  <h4 class="text-sm font-semibold text-gray-300">Nama AI</h4>
+                  <p class="text-[11px] text-gray-500">Mengubah nama AI Zanz_Codex</p>
+                </div>
+                <button @click="saveAIName" :disabled="savingName" class="bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white rounded-xl px-4 py-2 text-xs font-medium transition">💾 Simpan</button>
+              </div>
+              <div class="space-y-3">
+                <div>
+                  <label class="text-xs font-medium text-gray-400 block mb-1">AI Name</label>
+                  <input v-model="aiNameValue" class="w-full bg-gray-800/50 text-gray-200 rounded-xl px-4 py-2.5 border border-white/10 focus:outline-none focus:ring-2 focus:ring-indigo-500/40 text-sm" />
+                </div>
+                <div>
+                  <label class="text-xs font-medium text-gray-400 block mb-1">Display Name</label>
+                  <input v-model="aiDisplayValue" class="w-full bg-gray-800/50 text-gray-200 rounded-xl px-4 py-2.5 border border-white/10 focus:outline-none focus:ring-2 focus:ring-indigo-500/40 text-sm" />
+                </div>
+              </div>
+              <div v-if="nameMsg" class="text-xs mt-1" :class="nameMsgType==='ok'?'text-green-400':'text-red-400'">{{ nameMsg }}</div>
+            </div>
+          </div>
+
+          <!-- Tab: Quick Deploy -->
+          <div v-if="currentTab==='deploy'" class="max-w-2xl">
+            <div class="glass rounded-xl p-4 space-y-4">
+              <div>
+                <h4 class="text-sm font-semibold text-gray-300">🚀 Deploy & Update</h4>
+                <p class="text-[11px] text-gray-500">Commit perubahan ke GitHub lalu deploy ke Anyclaw</p>
+              </div>
+              <div>
+                <label class="text-xs font-medium text-gray-400 block mb-1">Commit Message</label>
+                <input v-model="commitMsg" class="w-full bg-gray-800/50 text-gray-200 rounded-xl px-4 py-2.5 border border-white/10 focus:outline-none focus:ring-2 focus:ring-indigo-500/40 text-sm" />
+              </div>
+              <div class="flex gap-2">
+                <button @click="commitAndPush" :disabled="committing" class="flex-1 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white rounded-xl px-4 py-2.5 text-sm font-medium transition">📤 Commit & Push</button>
+                <button @click="deployToAnyclaw" :disabled="deploying" class="flex-1 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white rounded-xl px-4 py-2.5 text-sm font-medium transition">🚀 Deploy ke Anyclaw</button>
+              </div>
+              <div v-if="deployMsg" class="text-xs" :class="deployMsgType==='ok'?'text-green-400':'text-red-400'">{{ deployMsg }}</div>
+            </div>
+          </div>
+
+          <!-- Tab: Security -->
+          <div v-if="currentTab==='security'" class="max-w-3xl">
+            <div class="glass rounded-xl p-4">
+              <h4 class="text-sm font-semibold text-gray-300 mb-3">🔒 5 Lapis Keamanan</h4>
+              <div class="space-y-3">
+                <div class="flex items-start gap-3 p-3 rounded-xl bg-white/5">
+                  <div class="w-8 h-8 rounded-lg bg-indigo-600/20 flex items-center justify-center text-sm shrink-0">L1</div>
+                  <div><div class="text-sm font-medium text-gray-300">Anyclaw Proxy</div><div class="text-xs text-gray-500">Website di-deploy via Anyclaw, GitHub origin tersembunyi</div></div>
+                </div>
+                <div class="flex items-start gap-3 p-3 rounded-xl bg-white/5">
+                  <div class="w-8 h-8 rounded-lg bg-indigo-600/20 flex items-center justify-center text-sm shrink-0">L2</div>
+                  <div><div class="text-sm font-medium text-gray-300">Password Login</div><div class="text-xs text-gray-500">Dashboard hanya bisa diakses dengan password yang benar</div></div>
+                </div>
+                <div class="flex items-start gap-3 p-3 rounded-xl bg-white/5">
+                  <div class="w-8 h-8 rounded-lg bg-indigo-600/20 flex items-center justify-center text-sm shrink-0">L3</div>
+                  <div><div class="text-sm font-medium text-gray-300">Domain Lock</div><div class="text-xs text-gray-500">Hanya domain Anyclaw tertentu yang bisa mengakses</div></div>
+                </div>
+                <div class="flex items-start gap-3 p-3 rounded-xl bg-white/5">
+                  <div class="w-8 h-8 rounded-lg bg-indigo-600/20 flex items-center justify-center text-sm shrink-0">L4</div>
+                  <div><div class="text-sm font-medium text-gray-300">Code Obfuscation</div><div class="text-xs text-gray-500">Kode JS di-minify, susah dibaca/dicuri</div></div>
+                </div>
+                <div class="flex items-start gap-3 p-3 rounded-xl bg-white/5">
+                  <div class="w-8 h-8 rounded-lg bg-indigo-600/20 flex items-center justify-center text-sm shrink-0">L5</div>
+                  <div><div class="text-sm font-medium text-gray-300">GitHub API Token</div><div class="text-xs text-gray-500">Semua operasi GitHub pakai token terenkripsi</div></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </template>
+</div>
+
+<script>
+const { createApp, ref, computed, onMounted } = Vue;
+
+const GH_TOKEN = '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';
+const GH_OWNER = 'izrai4103-lgtm';
+const GH_REPO = 'zanz_ai';
+const API = 'https://api.github.com';
+const PASSWORD = '1k4nl4g4$';
+const ANYCLAW_DEPLOY = 'https://anyclaw.store/api/deploy';
+
+// ── Domain Lock (Layer 3) ──
+(function(){var a=['anyclaw.store','localhost','127.0.0.1','zanz-codex.anyclaw.store'];var h=location.hostname;var o=a.some(function(d){return h===d||h.endsWith('.'+d)});if(!o){document.body.innerHTML='<div style=display:flex;align-items:center;justify-content:center;height:100vh;background:#0f172a;color:#94a3b8;font-family:sans-serif;font-size:1.2rem;text-align:center;padding:2rem><div><h1 style=color:#6366f1;font-size:2rem;margin-bottom:1rem>🔒 Access Denied</h1><p>Unauthorized domain.</p></div></div>';throw new Error('Blocked')}})();
+
+createApp({
+  setup() {
+    const loggedIn = ref(false);
+    const loginPass = ref('');
+    const loginError = ref('');
+    const currentTab = ref('files');
+    const repoFiles = ref([]);
+    const selectedFile = ref(null);
+    const fileContent = ref('');
+    const newFilePath = ref('');
+    const saving = ref(false);
+    const saveMsg = ref('');
+    const saveMsgType = ref('ok');
+    const repoStatus = ref('checking');
+    const repoInfo = ref('');
+    const committing = ref(false);
+    const deploying = ref(false);
+    const deployMsg = ref('');
+    const deployMsgType = ref('ok');
+    const commitMsg = ref('Update from dashboard');
+
+    // Prompt tab
+    const promptContent = ref('');
+    const savingPrompt = ref(false);
+    const promptMsg = ref('');
+    const promptMsgType = ref('ok');
+
+    // Name tab
+    const aiNameValue = ref('Zanz_Codex');
+    const aiDisplayValue = ref('Zanz_Codex 🤖');
+    const savingName = ref(false);
+    const nameMsg = ref('');
+    const nameMsgType = ref('ok');
+
+    const menuItems = [
+      { id: 'files', label: '📁 File Manager' },
+      { id: 'prompt', label: '🧠 System Prompt' },
+      { id: 'name', label: '✏️ AI Name' },
+      { id: 'deploy', label: '🚀 Deploy' },
+      { id: 'security', label: '🔒 Security' },
+    ];
+
+    // GitHub API helper
+    async function ghFetch(path, options = {}) {
+      const url = path.startsWith('http') ? path : `${API}${path}`;
+      const res = await fetch(url, {
+        ...options,
+        headers: {
+          'Authorization': `Bearer ${GH_TOKEN}`,
+          'Accept': 'application/vnd.github.v3+json',
+          ...options.headers,
+        }
+      });
+      return res;
+    }
+
+    async function getFileSha(path) {
+      try {
+        const res = await ghFetch(`/repos/${GH_OWNER}/${GH_REPO}/contents/${path}`);
+        if (res.ok) {
+          const data = await res.json();
+          return data.sha;
+        }
+      } catch(e) {}
+      return null;
+    }
+
+    // Load files
+    async function refreshFiles() {
+      try {
+        const res = await ghFetch(`/repos/${GH_OWNER}/${GH_REPO}/git/trees/master?recursive=1`);
+        const data = await res.json();
+        if (data.tree) {
+          repoFiles.value = data.tree.filter(f => f.type === 'blob' && !f.path.startsWith('.git')).map(f => ({
+            path: f.path,
+            type: 'file',
+            sha: f.sha
+          }));
+          repoStatus.value = 'ok';
+          repoInfo.value = `${data.tree.length} files`;
+        }
+      } catch(e) {
+        repoStatus.value = 'error';
+        repoInfo.value = 'Failed to load';
+      }
+    }
+
+    // Select file
+    async function selectFile(file) {
+      selectedFile.value = file;
+      try {
+        const res = await ghFetch(`/repos/${GH_OWNER}/${GH_REPO}/contents/${file.path}`);
+        const data = await res.json();
+        if (data.content) {
+          fileContent.value = atob(data.content.replace(/\n/g, ''));
+        }
+      } catch(e) {
+        fileContent.value = '// Error loading file';
+      }
+    }
+
+    // Save file
+    async function saveFile() {
+      if (!selectedFile.value) return;
+      saving.value = true;
+      saveMsg.value = '';
+      try {
+        const sha = await getFileSha(selectedFile.value.path);
+        const content = btoa(unescape(encodeURIComponent(fileContent.value)));
+        const res = await ghFetch(`/repos/${GH_OWNER}/${GH_REPO}/contents/${selectedFile.value.path}`, {
+          method: 'PUT',
+          body: JSON.stringify({
+            message: `Update ${selectedFile.value.path} from dashboard`,
+            content,
+            sha: sha || undefined,
+            branch: 'master'
+          })
+        });
+        if (res.ok) {
+          saveMsg.value = '✅ File saved to GitHub!';
+          saveMsgType.value = 'ok';
+          await refreshFiles();
+        } else {
+          const err = await res.json();
+          saveMsg.value = `❌ ${err.message || 'Error'}`;
+          saveMsgType.value = 'error';
+        }
+      } catch(e) {
+        saveMsg.value = `❌ ${e.message}`;
+        saveMsgType.value = 'error';
+      }
+      saving.value = false;
+    }
+
+    // Create new file
+    async function createNewFile() {
+      if (!newFilePath.value.trim()) return;
+      saving.value = true;
+      try {
+        const res = await ghFetch(`/repos/${GH_OWNER}/${GH_REPO}/contents/${newFilePath.value}`, {
+          method: 'PUT',
+          body: JSON.stringify({
+            message: `Create ${newFilePath.value} from dashboard`,
+            content: btoa('// New file created from dashboard\n'),
+            branch: 'master'
+          })
+        });
+        if (res.ok) {
+          newFilePath.value = '';
+          await refreshFiles();
+        } else {
+          const err = await res.json();
+          alert('Error: ' + (err.message || 'Unknown'));
+        }
+      } catch(e) {
+        alert('Error: ' + e.message);
+      }
+      saving.value = false;
+    }
+
+    // Load prompt.ts content
+    async function loadPrompt() {
+      try {
+        const res = await ghFetch(`/repos/${GH_OWNER}/${GH_REPO}/contents/prompt.ts`);
+        if (res.ok) {
+          const data = await res.json();
+          promptContent.value = atob(data.content.replace(/\n/g, ''));
+        }
+      } catch(e) {
+        promptContent.value = '// prompt.ts not found';
+      }
+    }
+
+    // Save prompt
+    async function savePrompt() {
+      savingPrompt.value = true;
+      promptMsg.value = '';
+      try {
+        const sha = await getFileSha('prompt.ts');
+        const content = btoa(unescape(encodeURIComponent(promptContent.value)));
+        const res = await ghFetch(`/repos/${GH_OWNER}/${GH_REPO}/contents/prompt.ts`, {
+          method: 'PUT',
+          body: JSON.stringify({
+            message: 'Update system prompt from dashboard',
+            content,
+            sha: sha || undefined,
+            branch: 'master'
+          })
+        });
+        promptMsg.value = res.ok ? '✅ System prompt saved!' : '❌ Error saving';
+        promptMsgType.value = res.ok ? 'ok' : 'error';
+      } catch(e) {
+        promptMsg.value = '❌ ' + e.message;
+        promptMsgType.value = 'error';
+      }
+      savingPrompt.value = false;
+    }
+
+    // Load name.ts
+    async function loadName() {
+      try {
+        const res = await ghFetch(`/repos/${GH_OWNER}/${GH_REPO}/contents/name.ts`);
+        if (res.ok) {
+          const data = await res.json();
+          const text = atob(data.content.replace(/\n/g, ''));
+          const nameMatch = text.match(/AI_NAME\s*=\s*'([^']+)'/);
+          const displayMatch = text.match(/AI_DISPLAY_NAME\s*=\s*'([^']+)'/);
+          if (nameMatch) aiNameValue.value = nameMatch[1];
+          if (displayMatch) aiDisplayValue.value = displayMatch[1];
+        }
+      } catch(e) {}
+    }
+
+    // Save AI name
+    async function saveAIName() {
+      savingName.value = true;
+      nameMsg.value = '';
+      try {
+        let newContent = `export const AI_NAME = '${aiNameValue.value}';\nexport const AI_DISPLAY_NAME = '${aiDisplayValue.value}';\n`;
+        const sha = await getFileSha('name.ts');
+        const content = btoa(unescape(encodeURIComponent(newContent)));
+        const res = await ghFetch(`/repos/${GH_OWNER}/${GH_REPO}/contents/name.ts`, {
+          method: 'PUT',
+          body: JSON.stringify({
+            message: 'Update AI name from dashboard',
+            content,
+            sha: sha || undefined,
+            branch: 'master'
+          })
+        });
+        nameMsg.value = res.ok ? '✅ AI name saved!' : '❌ Error saving';
+        nameMsgType.value = res.ok ? 'ok' : 'error';
+      } catch(e) {
+        nameMsg.value = '❌ ' + e.message;
+        nameMsgType.value = 'error';
+      }
+      savingName.value = false;
+    }
+
+    // Commit and push
+    async function commitAndPush() {
+      committing.value = true;
+      deployMsg.value = '⏳ Creating commit...';
+      deployMsgType.value = 'ok';
+      try {
+        // Get latest commit SHA
+        const refRes = await ghFetch(`/repos/${GH_OWNER}/${GH_REPO}/git/refs/heads/master`);
+        const refData = await refRes.json();
+        const latestSha = refData.object.sha;
+
+        // Create a tree with all current file contents
+        const treeItems = [];
+        for (const file of repoFiles.value) {
+          if (file.path === '.gitignore' || file.path.startsWith('.git')) continue;
+          const contentRes = await ghFetch(`/repos/${GH_OWNER}/${GH_REPO}/contents/${file.path}`);
+          if (contentRes.ok) {
+            const contentData = await contentRes.json();
+            treeItems.push({
+              path: file.path,
+              mode: '100644',
+              type: 'blob',
+              sha: contentData.sha
+            });
+          }
+        }
+
+        // Create new tree
+        const treeRes = await ghFetch(`/repos/${GH_OWNER}/${GH_REPO}/git/trees`, {
+          method: 'POST',
+          body: JSON.stringify({
+            base_tree: refData.object.sha,
+            tree: []
+          })
+        });
+        const treeData = await treeRes.json();
+
+        // Create commit
+        const commitRes = await ghFetch(`/repos/${GH_OWNER}/${GH_REPO}/git/commits`, {
+          method: 'POST',
+          body: JSON.stringify({
+            message: commitMsg.value || 'Update from Zanz Dashboard',
+            tree: treeData.sha,
+            parents: [latestSha]
+          })
+        });
+        const commitData = await commitRes.json();
+
+        // Update ref
+        await ghFetch(`/repos/${GH_OWNER}/${GH_REPO}/git/refs/heads/master`, {
+          method: 'PATCH',
+          body: JSON.stringify({ sha: commitData.sha, force: false })
+        });
+
+        deployMsg.value = '✅ Changes committed and pushed to GitHub!';
+        deployMsgType.value = 'ok';
+        await refreshFiles();
+      } catch(e) {
+        deployMsg.value = '❌ ' + e.message;
+        deployMsgType.value = 'error';
+      }
+      committing.value = false;
+    }
+
+    // Deploy to Anyclaw
+    async function deployToAnyclaw() {
+      deploying.value = true;
+      deployMsg.value = '⏳ Deploying...';
+      deployMsgType.value = 'ok';
+      try {
+        // Get frontend/index.html from GitHub
+        const res = await ghFetch(`/repos/${GH_OWNER}/${GH_REPO}/contents/frontend/index.html`);
+        const data = await res.json();
+        const htmlContent = atob(data.content.replace(/\n/g, ''));
+
+        // Also get prompt.ts and name.ts
+        const promptRes = await ghFetch(`/repos/${GH_OWNER}/${GH_REPO}/contents/prompt.ts`);
+        const nameRes = await ghFetch(`/repos/${GH_OWNER}/${GH_REPO}/contents/name.ts`);
+
+        // Build deploy ZIP (simplified - just the HTML for now)
+        const zipContent = htmlContent;
+
+        // Call Anyclaw API
+        const deployRes = await fetch(ANYCLAW_DEPLOY, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            app_id: 'zanz-codex',
+            zip_b64: btoa(unescape(encodeURIComponent(zipContent))),
+            app_type: 'web_app',
+            site_map: ['/']
+          })
+        });
+        const deployData = await deployRes.json();
+        if (deployData.ok) {
+          deployMsg.value = `✅ Deployed! ${deployData.claim_url}`;
+          deployMsgType.value = 'ok';
+        } else {
+          deployMsg.value = '❌ ' + JSON.stringify(deployData);
+          deployMsgType.value = 'error';
+        }
+      } catch(e) {
+        deployMsg.value = '❌ ' + e.message;
+        deployMsgType.value = 'error';
+      }
+      deploying.value = false;
+    }
+
+    function doLogin() {
+      if (loginPass.value === PASSWORD) {
+        loggedIn.value = true;
+        loginError.value = '';
+        refreshFiles();
+        loadPrompt();
+        loadName();
+      } else {
+        loginError.value = 'Password salah!';
+      }
+    }
+
+    function logout() {
+      loggedIn.value = false;
+      loginPass.value = '';
+    }
+
+    onMounted(() => {
+      // Check if session exists
+      const saved = localStorage.getItem('zanz_dash_session');
+      if (saved === 'authenticated') {
+        loggedIn.value = true;
+        refreshFiles();
+        loadPrompt();
+        loadName();
+      }
+    });
+
+    // Watch login to save session
+    watch(loggedIn, (v) => {
+      if (v) localStorage.setItem('zanz_dash_session', 'authenticated');
+      else localStorage.removeItem('zanz_dash_session');
+    });
+
+    // Watch tab changes
+    watch(currentTab, (tab) => {
+      if (tab === 'prompt' && !promptContent.value) loadPrompt();
+      if (tab === 'name' && aiNameValue.value === 'Zanz_Codex') loadName();
+    });
+
+    return {
+      loggedIn, loginPass, loginError, currentTab, menuItems,
+      repoFiles, selectedFile, fileContent, newFilePath, saving, saveMsg, saveMsgType,
+      repoStatus, repoInfo, committing, deploying, deployMsg, deployMsgType, commitMsg,
+      promptContent, savingPrompt, promptMsg, promptMsgType,
+      aiNameValue, aiDisplayValue, savingName, nameMsg, nameMsgType,
+      doLogin, logout, refreshFiles, selectFile, saveFile, createNewFile,
+      savePrompt, loadPrompt, saveAIName, commitAndPush, deployToAnyclaw
+    };
+  }
+}).mount('#app');
+</script>
+</body>
+</html>
