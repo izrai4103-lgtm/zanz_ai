@@ -293,7 +293,7 @@ const ALLOWED = [
 'anyclaw.store',
 'localhost',
 '127.0.0.1',
-'izrai4103-lgtm.github.io'
+'zanz-codex.anyclaw.store'
 ];
 const host = window.location.hostname;
 const ok = ALLOWED.some(d => host === d || host.endsWith('.' + d));
@@ -374,13 +374,12 @@ h = h.replace(/^> (.+)$/gm, '<blockquote>$1</blockquote>');
 h = h.replace(/^- (.+)$/gm, '<li>$1</li>');
 h = h.replace(/(<li>.*<\/li>\n?)+/g, '<ul><script>
 
-// === LAYER 2: DOMAIN LOCK ===
 (function() {
   const ALLOWED = [
     'anyclaw.store',
     'localhost',
     '127.0.0.1',
-    'izrai4103-lgtm.github.io'
+    'zanz-codex.anyclaw.store'
   ];
   const host = window.location.hostname;
   const ok = ALLOWED.some(d => host === d || host.endsWith('.' + d));
